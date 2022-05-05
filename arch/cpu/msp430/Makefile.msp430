@@ -48,35 +48,48 @@ ifeq ($(WERROR),1)
 CFLAGSWERROR= -Wall -Werror
 endif
 
-CC       = msp430-gcc
-CXX      = msp430-g++
-LD       = msp430-gcc
-AS       = msp430-as
-AR       = msp430-ar
-NM       = msp430-nm
-OBJCOPY  = msp430-objcopy
-STRIP    = msp430-strip
-SIZE     = msp430-size
-BSL      = msp430-bsl
+CC       = msp430-elf-gcc
+CXX      = msp430-elf-g++
+LD       = msp430-elf-gcc
+AS       = msp430-elf-as
+AR       = msp430-elf-ar
+NM       = msp430-elf-nm
+OBJCOPY  = msp430-elf-objcopy
+STRIP    = msp430-elf-strip
+SIZE     = msp430-elf-size
+BSL      = msp430-elf-bsl
+
+OLD_MSP430LIBC ?= /usr/local/old-msp430-libc/msp430
+TINY_MSP430LIBC ?= /usr/local/msp430-libc-tiny/msp430-elf
+
+CFLAGS += -ffunction-sections -fdata-sections -mrelax -flto
+LDFLAGS += -v -Wl,--gc-sections -mtiny-printf -mrelax -flto
 
 ifdef CPU_HAS_MSP430X
- ifeq ($(TARGET_MEMORY_MODEL),large)
-  CFLAGS += -mmemory-model=$(TARGET_MEMORY_MODEL)
-  CFLAGS += -mcode-region=far -mdata-region=far -msr20 -mc20 -md20
-  LDFLAGS += -mmemory-model=$(TARGET_MEMORY_MODEL) -mcode-region=far -mdata-region=far -msr20 -mc20 -md20
- else
-  TARGET_MEMORY_MODEL = medium
-  CFLAGS += -mmemory-model=$(TARGET_MEMORY_MODEL)
-  CFLAGS += -ffunction-sections -fdata-sections -mcode-region=any
-  LDFLAGS += -mmemory-model=$(TARGET_MEMORY_MODEL) -Wl,-gc-sections
- endif
+  ifeq ($(TARGET_MEMORY_MODEL),large)
+    # Code and data in lower region, linker shuffles code that does not fit.
+    CFLAGS += -mlarge -mcode-region=either
+    LDFLAGS += -mlarge -mcode-region=either
+    LDFLAGS += -L$(TINY_MSP430LIBC)/lib/large
+  else
+    LDFLAGS += -L$(TINY_MSP430LIBC)/lib
+  endif
+else
+  LDFLAGS += -L$(TINY_MSP430LIBC)/lib/430
+#  CFLAGS += -nostdlib -I$(OLD_MSP430LIBC)/include
+# LDFLAGS += -nostdlib -L$(OLD_MSP430LIBC)/lib/430
+#  TARGET_LIBFILES += -lgcc -Wl,--start-group -lmul_16 -lc -lgcc -lcrt -lnosys -Wl,--end-group -Wl,--script=$(MCU).ld -lgcc /usr/local/lib/gcc/msp430-elf/9.3.1/430/crtend_no_eh.o -lgcc
 endif
 
 ifndef CFLAGSNO
 CFLAGSNO = -Wall -mmcu=$(MCU) $(CFLAGSWERROR)
 endif
-CFLAGS  += -Os -fno-strict-aliasing -std=gnu99
+CFLAGS  += -Os -fno-strict-aliasing
 LDFLAGS += -mmcu=$(MCU) -Wl,-Map=$(CONTIKI_NG_PROJECT_MAP)
+
+# .crt_0100init_bss .crt_0200init_highbss
+# .crt_0300movedata .crt_0400move_highdata .crt_0500run_preinit_array
+# .crt_0600run_init_array .crt_0710run_smi_location_init_array
 
 ### These flags can reduce the code size and RAM usage with up to 10%
 SMALL ?= 1

@@ -63,10 +63,23 @@ RUN wget -nv https://developer.arm.com/-/media/Files/downloads/gnu-rm/10.3-2021.
   rm -f gcc-arm-none-eabi-*-linux.tar.bz2
 
 # Install msp430 toolchain
-RUN wget -nv http://simonduq.github.io/resources/mspgcc-4.7.2-compiled.tar.bz2 && \
-  tar xjf mspgcc*.tar.bz2 -C /tmp/ && \
-  cp -f -r /tmp/msp430/* /usr/local/ && \
-  rm -rf /tmp/msp430 mspgcc*.tar.bz2
+RUN wget -nv https://dr-download.ti.com/software-development/ide-configuration-compiler-or-debugger/MD-LlCjWuAbzH/9.3.1.2/msp430-gcc-9.3.1.11_linux32.tar.bz2 && \
+  tar xjf msp430-gcc*.tar.bz2 -C /usr/local --strip-components=1 --no-same-owner && \
+  rm -f msp430-gcc*.tar.bz2
+
+# Install msp430 support files, chapter 4.5 in MSP430 GCC User's guide.
+RUN wget -nv https://dr-download.ti.com/software-development/ide-configuration-compiler-or-debugger/MD-LlCjWuAbzH/9.3.1.2/msp430-gcc-support-files-1.212.zip && \
+  unzip -q msp430-gcc*.zip -d /tmp && \
+  cp -r /tmp/msp430-gcc-support-files/include/ /usr/local/msp430-elf/include/devices/ && \
+  rm -rf /tmp/msp430-gcc-support* msp430-gcc*.zip
+
+# The support files cannot be found by default.
+# GCC 4.7.2 had the support files in a different place, make compatibility
+# symlinks for now.
+RUN (cd /usr/local/msp430-elf/include && \
+     for file in `ls devices/*.h`; do ln -s $file .; done)
+RUN (cd /usr/local/msp430-elf/lib && \
+     for file in `ls ../include/devices/*.ld`; do ln -s $file .; done)
 
 # Install NXP toolchain (partial, with binaries excluded. Download from nxp.com)
 RUN wget -nv http://simonduq.github.io/resources/ba-elf-gcc-4.7.4-part1.tar.bz2 && \
