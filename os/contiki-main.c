@@ -163,25 +163,50 @@ parse_argv(int *argc, char ***argv)
   const int num_options = list_length(contiki_options);
   struct contiki_option options[num_options];
   struct option long_options[num_options + 1];
+  char opt_string[num_options * 2 + 1];
 
+  int opt_i = 0;
   int i = 0;
   for(struct contiki_option *r = list_head(contiki_options);
       r != NULL; ++i, r = r->next) {
     memcpy(&long_options[i], &r->opt_struct, sizeof(struct option));
     memcpy(&options[i], r, sizeof(struct contiki_option));
+    if(r->opt_struct.flag == NULL && r->opt_struct.val != 0) {
+      opt_string[opt_i++] = r->opt_struct.val;
+      if(r->opt_struct.has_arg == required_argument) {
+        opt_string[opt_i++] = ':';
+      }
+    }
   }
+
   /* Null terminate options. */
   memset(&long_options[i], 0, sizeof(struct option));
+  opt_string[opt_i] = '\0';
 
-  while (1) {
+  while(1) {
     int ix = 0;
-    int c = getopt_long_only(*argc, *argv, "", long_options, &ix);
+    int c = getopt_long_only(*argc, *argv, opt_string, long_options, &ix);
     if(c == -1) { /* Processed all options. */
       break;
     }
     if(c == '?') { /* Unknown option, print help and return error. */
       print_help();
       return 1;
+    }
+    if(c != 0) {
+      bool found = false;
+      for(i = 0; i < num_options; i++) {
+        if(long_options[i].flag == NULL && long_options[i].val == c) {
+          ix = i;
+          found = true;
+          break;
+        }
+      }
+      if(!found) {
+        printf("Unknown option: -%c\n", c);
+        print_help();
+        return 1;
+      }
     }
     if(options[ix].callback) { /* Option has a callback, call with optarg. */
       int rv;
